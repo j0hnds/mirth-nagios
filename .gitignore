@@ -1,0 +1,5 @@
+# Vim stuff
+*.swp
+
+# Tarballs
+*.bz2
