@@ -98,22 +98,6 @@ def parseResults(results):
             2 : 'signature-1-hour',
             3 : 'signature-6-hour'
             }
-    #values = {0 : 'current-connections',
-              #1 : 'current-jobs-buried',
-              #2 : 'current-jobs-delayed',
-              #3 : 'current-jobs-ready',
-              #4 : 'current-jobs-reserved',
-              #5 : 'current-jobs-urgent',
-              #6 : 'current-producers',
-              #7 : 'current-tubes',
-              #8 : 'current-waiting',
-              #9 : 'current-workers',
-              #10: 'job-timeouts',
-              #11: 'total-connections',
-              #12: 'total-jobs',
-              #13: 'uptime',
-              #14: 'version',
-              #}
 
     final_results = {}
     for key in values:
@@ -134,14 +118,14 @@ def presentResults(results):
     finalLine += status + ': '
 
     # Data to present to Nagios interface
-    for item in (range(0, 3)):
+    for item in (range(0, 4)):
         finalLine += '{0}={1} '.format(results[item][0], results[item][1])
 
     #Prepare parse data
     finalLine += '| '
 
     #Data to present perfparse
-    for item in range(0, 3):
+    for item in range(0, 4):
         finalLine += '{0}={1};;;; '.format(results[item][0], results[item][1])
 
     print finalLine
@@ -171,21 +155,10 @@ def setAlarms(results, args):
     # 1 : 'lcca-6-hour'
     # 3 : 'signature-6-hour'
 
-    # We only care about three conditions:
-    #3 : 'current-jobs-ready'
-    #9 : 'current-workers'
-    #10: 'job-timeouts
-
     lcca_critical = args.lcca_critical
     signature_critical = args.signature_critical
     lcca_warning = args.lcca_warning
     signature_warning = args.signature_warning
-    #ready_critical = args.ready_critical
-    #timeouts_critical = args.timeouts_critical
-    #workers_critical = args.workers_critical
-    #ready_warning = args.ready_warning
-    #timeouts_warning = args.timeouts_warning
-    #workers_warning = args.workers_warning
 
     if int(results[1][-1]) <= lcca_warning:
         exit_state['warning'] += 1
@@ -196,11 +169,6 @@ def setAlarms(results, args):
         exit_state['warning'] += 1
         if int(results[3][-1]) <= signature_critical:
             exit_state['critical'] += 1
-
-    #if int(results[10][-1]) <= timeouts_warning:
-        #exit_state['warning'] += 1
-        #if int(results[10][-1]) <= timeouts_critical:
-            #exit_state['critical'] += 1
 
     return None
 
@@ -275,14 +243,6 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--timeout', default=10,
                         help=('Set the timeout for the program to run '
                               '(Default: %(default)s seconds)'), type=int)
-    #parser.add_argument('--timeouts-critical', type=int,
-                        #dest='timeouts_critical',
-                        #help=('Critical threshold for the number of jobs '
-                              #'timing out'))
-    #parser.add_argument('--timeouts-warning', type=int,
-                        #dest='timeouts_warning',
-                        #help=('Warning threshold for number of jobs timing '
-                              #'out'))
     parser.add_argument('-u', dest='secName', action='store',
                         help='Set the SNMPv3 security name (user name).')
     parser.add_argument('-v', dest='version', default=3, action='store',
