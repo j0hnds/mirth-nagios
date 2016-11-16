@@ -30,9 +30,50 @@ except ImportError:
     print "Unable to load netsnmp python module, aborting!"
     sys.exit(UNKNOWN)
 import os
+import datetime
+import time
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
+
+# Define a TZINFO class so that we can do all our date calculations
+# in UTC.
+class UTC(datetime.tzinfo):
+    def utcoffset(self, dt):
+        return datetime.timedelta(0)
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return datetime.timedelta(0)
+
+# The single instance of UTC we need for our purposes.
+Utc = UTC()
+
+# Exclusion Ranges. This is a tuple of tuples of tuples (awesome).
+# There are 7 tuples at the top level, one for each day of the week: Mon - 0, Sun - 6
+# Within each day of the week, there is a tuple of tuples of time ranges for
+# which checks are excluded. 
+#
+# All times are UTC.
+#
+EXCLUSION_RANGES = (
+        # Monday
+        ( ( '00:00:00', '12:00:00' ), None ),
+        # Tuesday
+        ( ( '00:00:00', '12:00:00' ), None ),
+        # Wednesday
+        ( ( '00:00:00', '12:00:00' ), None ),
+        # Thursday
+        ( ( '00:00:00', '12:00:00' ), None ),
+        # Friday
+        ( ( '00:00:00', '12:00:00' ), None ),
+        # Saturday
+        ( ( '00:00:00', '12:00:00' ), ( '22:00:00', '23:59:59' ) ),
+        # Sunday
+        ( ( '00:00:00', '12:00:00' ), ( '22:00:00', '23:59:59' ) )
+        )
 
 exit_state = {'critical': 0, 'unknown': 0, 'warning': 0}
 
@@ -53,7 +94,6 @@ class CLIError(Exception):
         return self.msg
 
 def snmpSession(options):
-
 
     hostname = options.hostname
     port = options.port
@@ -149,6 +189,40 @@ def queryMirth(session):
 
     return results
 
+def createDateTime(t, st):
+    st = time.strptime(st, '%H:%M:%S')
+    return datetime.datetime(
+            t.year, t.month, t.day, 
+            st.tm_hour, st.tm_min, st.tm_sec, 
+            0, Utc)
+
+def inExclusionRange():
+    t = datetime.datetime.now(Utc)
+
+    # Get the ranges that apply to the current weekday
+    day_ranges = EXCLUSION_RANGES[t.weekday()]
+
+    inRange = False
+
+    # Check all the registered date ranges for this
+    # day of the week
+    for day_range in day_ranges:
+        if inRange or not day_range: continue
+        t1 = createDateTime(t, day_range[0])
+        t2 = createDateTime(t, day_range[1])
+        inRange = t >= t1 and t <= t2
+        # print "{0} = {1} >= {2} and {1} <= {3}".format(inRange, t, t1, t2)
+
+    return inRange
+
+def setAlarm(value, warning, critical):
+    if value <= warning:
+        exit_state['warning'] += 1
+        if value <= critical:
+            exit_state['critical'] += 1
+
+    return None
+
 def setAlarms(results, args):
 
     # We only care about two conditions:
@@ -160,15 +234,10 @@ def setAlarms(results, args):
     lcca_warning = args.lcca_warning
     signature_warning = args.signature_warning
 
-    if int(results[1][-1]) <= lcca_warning:
-        exit_state['warning'] += 1
-        if int(results[1][-1]) <= lcca_critical:
-            exit_state['critical'] += 1
+    if not inExclusionRange():
+        setAlarm(int(results[1][-1]), lcca_warning, lcca_critical)
 
-    if int(results[3][-1]) <= signature_warning:
-        exit_state['warning'] += 1
-        if int(results[3][-1]) <= signature_critical:
-            exit_state['critical'] += 1
+        setAlarm(int(results[3][-1]), signature_warning, signature_critical)
 
     return None
 

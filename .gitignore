@@ -3,3 +3,6 @@
 
 # Tarballs
 *.bz2
+
+# General nonsense
+test_time.py
