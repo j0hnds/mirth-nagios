@@ -32,6 +32,7 @@ except ImportError:
 import os
 import datetime
 import time
+import json
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -57,23 +58,10 @@ Utc = UTC()
 # which checks are excluded. 
 #
 # All times are UTC.
+# 
+# These exclusions are read from the configuration file (--exclusions)
 #
-EXCLUSION_RANGES = (
-        # Monday
-        ( ( '00:00:00', '12:00:00' ), None ),
-        # Tuesday
-        ( ( '00:00:00', '12:00:00' ), None ),
-        # Wednesday
-        ( ( '00:00:00', '12:00:00' ), None ),
-        # Thursday
-        ( ( '00:00:00', '12:00:00' ), None ),
-        # Friday
-        ( ( '00:00:00', '12:00:00' ), None ),
-        # Saturday
-        ( ( '00:00:00', '12:00:00' ), ( '22:00:00', '23:59:59' ) ),
-        # Sunday
-        ( ( '00:00:00', '12:00:00' ), ( '22:00:00', '23:59:59' ) )
-        )
+EXCLUSION_RANGES = None
 
 exit_state = {'critical': 0, 'unknown': 0, 'warning': 0}
 
@@ -287,6 +275,11 @@ if __name__ == "__main__":
     parser.add_argument('-a', dest='authProtocol', action='store',
                         help=('Set the default authentication protocol for '
                               'SNMPv3 (MD5 or SHA).'))
+    parser.add_argument('-e', '--exclusions', action='store',
+            dest='exclusions', 
+            default=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mirth_exclusions.json'),
+            help=('Specify the location of the exclusions file to use. (Default: '
+                '%(default)s)'))
     parser.add_argument('-A', dest='authPassword',
                         help=('Set the SNMPv3 authentication protocol '
                               'password.'))
@@ -332,6 +325,11 @@ if __name__ == "__main__":
 
     # Process arguments
     args = parser.parse_args()
+
+    # print "The exclusions: {}".format(args.exclusions)
+    ef = open(args.exclusions, 'r')
+    EXCLUSION_RANGES = json.load(ef)
+    ef.close()
 
     #Start the timer
     signal.signal(signal.SIGALRM, sigalarmHandler)
