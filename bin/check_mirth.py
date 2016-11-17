@@ -12,7 +12,7 @@ It defines classes_and_methods
 
 @copyright:  2016 Dave Sieh. All rights reserved.
 
-@license:    AGPLv3
+@license:    MIT
 
 @contact:    davesieh@gmail.com
 @deffield    updated: Updated
@@ -59,59 +59,68 @@ Utc = UTC()
 #
 # All times are UTC.
 # 
-# These exclusions are read from the configuration file (--exclusions)
+# These exclusions are read from the JSON configuration file (--exclusions)
 #
 EXCLUSION_RANGES = None
 
-exit_state = {'critical': 0, 'unknown': 0, 'warning': 0}
+exitState = { 'critical' : 0, 'unknown' : 0, 'warning' : 0 }
 
 __all__ = []
 __version__ = 0.1
 __date__ = '2016-10-04'
 __updated__ = '2016-10-04'
 
-
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
     def __init__(self, msg):
         super(CLIError).__init__(type(self))
         self.msg = "E: %s" % msg
+
     def __str__(self):
         return self.msg
+
     def __unicode__(self):
         return self.msg
 
-def snmpSession(options):
-
+def snmpV3Session(options):
     hostname = options.hostname
     port = options.port
     version = options.version
 
-#    logger.debug('Obtaining serial number via SNMP '
-#                 'version: {0}.'.format(version))
+    secLevel = options.secLevel
+    secName = options.secName
+    privProtocol = options.privProtocol
+    privPassword = options.privPassword
+    authProtocol = options.authProtocol
+    authPassword = options.authPassword
+
+    return netsnmp.Session(DestHost=hostname, Version=version,
+                           SecLevel=secLevel, SecName=secName,
+                           AuthProto=authProtocol,
+                           AuthPass=authPassword,
+                           PrivProto=privProtocol,
+                           PrivPass=privPassword,
+                           RemotePort = port,
+                           )
+
+def snmpCommunitySession(options):
+    hostname = options.hostname
+    port = options.port
+    version = options.version
+
+    community = options.community
+
+    return netsnmp.Session(DestHost=hostname, Version=version,
+                           Community=community, RemotePort=port)
+
+def snmpSession(options):
+    version = options.version
 
     if version == 3:
-        sec_level = options.secLevel
-        sec_name = options.secName
-        priv_protocol = options.privProtocol
-        priv_password = options.privPassword
-        auth_protocol = options.authProtocol
-        auth_password = options.authPassword
-
-        session = netsnmp.Session(DestHost=hostname, Version=version,
-                                  SecLevel=sec_level, SecName=sec_name,
-                                  AuthProto=auth_protocol,
-                                  AuthPass=auth_password,
-                                  PrivProto=priv_protocol,
-                                  PrivPass=priv_password,
-                                  RemotePort = port,
-                                  )
+        session = snmpV3Session(options)
 
     elif version == 2 or version == 1:
-        community = options.community
-
-        session = netsnmp.Session(DestHost=hostname, Version=version,
-                                  Community=community, RemotePort=port)
+        session = snmpCommunitySession(options)
 
     else:
         print 'Unknown SNMP version {0}, exiting!'.format(version)
@@ -127,18 +136,18 @@ def parseResults(results):
             3 : 'signature-6-hour'
             }
 
-    final_results = {}
+    finalResults = {}
     for key in values:
-        final_results[key] = (values[key], results[key])
+        finalResults[key] = (values[key], results[key])
 
-    return final_results
+    return finalResults
 
 def presentResults(results):
     finalLine = ''
 
-    if exit_state['critical']:
+    if exitState['critical']:
         status = 'CRITICAL'
-    elif exit_state['warning']:
+    elif exitState['warning']:
         status = 'WARNING'
     else:
         status='OK'
@@ -188,16 +197,16 @@ def inExclusionRange():
     t = datetime.datetime.now(Utc)
 
     # Get the ranges that apply to the current weekday
-    day_ranges = EXCLUSION_RANGES[t.weekday()]
+    dayRanges = EXCLUSION_RANGES[t.weekday()]
 
     inRange = False
 
     # Check all the registered date ranges for this
     # day of the week
-    for day_range in day_ranges:
-        if inRange or not day_range: continue
-        t1 = createDateTime(t, day_range[0])
-        t2 = createDateTime(t, day_range[1])
+    for dayRange in dayRanges:
+        if inRange or not dayRange: break
+        t1 = createDateTime(t, dayRange[0])
+        t2 = createDateTime(t, dayRange[1])
         inRange = t >= t1 and t <= t2
         # print "{0} = {1} >= {2} and {1} <= {3}".format(inRange, t, t1, t2)
 
@@ -205,9 +214,9 @@ def inExclusionRange():
 
 def setAlarm(value, warning, critical):
     if value <= warning:
-        exit_state['warning'] += 1
+        exitState['warning'] += 1
         if value <= critical:
-            exit_state['critical'] += 1
+            exitState['critical'] += 1
 
     return None
 
@@ -217,15 +226,15 @@ def setAlarms(results, args):
     # 1 : 'lcca-6-hour'
     # 3 : 'signature-6-hour'
 
-    lcca_critical = args.lcca_critical
-    signature_critical = args.signature_critical
-    lcca_warning = args.lcca_warning
-    signature_warning = args.signature_warning
+    lccaCritical = args.lccaCritical
+    signatureCritical = args.signatureCritical
+    lccaWarning = args.lccaWarning
+    signatureWarning = args.signatureWarning
 
     if not inExclusionRange():
-        setAlarm(int(results[1][-1]), lcca_warning, lcca_critical)
+        setAlarm(int(results[1][-1]), lccaWarning, lccaCritical)
 
-        setAlarm(int(results[3][-1]), signature_warning, signature_critical)
+        setAlarm(int(results[3][-1]), signatureWarning, signatureCritical)
 
     return None
 
@@ -248,29 +257,29 @@ if __name__ == "__main__":
 
     argv = sys.argv
 
-    program_name = os.path.basename(sys.argv[0])
-    program_version = "v{0}".format(__version__)
-    program_build_date = str(__updated__)
-    program_version_message = '%%(prog)s {0} ({1})'.format(program_version,
-                                                     program_build_date)
-    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
-    program_license = '''{0}
+    programName = os.path.basename(sys.argv[0])
+    programVersion = "v{0}".format(__version__)
+    programBuildDate = str(__updated__)
+    programVersionMessage = '%%(prog)s {0} ({1})'.format(programVersion,
+                                                     programBuildDate)
+    programShortdesc = __import__('__main__').__doc__.split("\n")[1]
+    programLicense = '''{0}
 
     Created by Dave Sieh on {1}.
     Copyright 2016 Dave Sieh. All rights reserved.
 
-    Licensed under the AGPLv3
-    https://www.gnu.org/licenses/agpl-3.0.html
+    Licensed under the MIT
+    https://opensource.org/licenses/MIT
 
     Distributed on an "AS IS" basis without warranties
     or conditions of any kind, either express or implied.
 
     USAGE
-    '''.format(program_shortdesc, str(__date__))
+    '''.format(programShortdesc, str(__date__))
 
 
     # Setup argument parser
-    parser = ArgumentParser(description=program_license,
+    parser = ArgumentParser(description=programLicense,
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('-a', dest='authProtocol', action='store',
                         help=('Set the default authentication protocol for '
@@ -297,10 +306,10 @@ if __name__ == "__main__":
                         help=('Set the SNMP port to be connected to '
                               '(Default:%(default)s).'), type=int)
     parser.add_argument('--lcca-critical', type=int,
-                        dest='lcca_critical',
+                        dest='lccaCritical',
                         help=('Critical threshold for lcca-6-hour'))
     parser.add_argument('--lcca-warning', type=int,
-                        dest='lcca_warning',
+                        dest='lccaWarning',
                         help=('Warning threshold for lcca-6-hour'))
     parser.add_argument('-t', '--timeout', default=10,
                         help=('Set the timeout for the program to run '
@@ -313,10 +322,10 @@ if __name__ == "__main__":
     parser.add_argument('-V', '--verbose', action='count', default=False,
                         help =('Give verbose output (Default: %(default)s'))
     parser.add_argument('--signature-critical', type=int,
-                        dest='signature_critical',
+                        dest='signatureCritical',
                         help=('Critical threshold for signature-6-hour'))
     parser.add_argument('--signature-warning', type=int,
-                        dest='signature_warning',
+                        dest='signatureWarning',
                         help=('Warning threshold for signature-6-hour'))
     parser.add_argument('-x', dest='privProtocol', action='store',
                         help='Set the SNMPv3 privacy protocol (DES or AES).')
