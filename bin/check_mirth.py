@@ -286,7 +286,7 @@ if __name__ == "__main__":
                               'SNMPv3 (MD5 or SHA).'))
     parser.add_argument('-e', '--exclusions', action='store',
             dest='exclusions', 
-            default=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mirth_exclusions.json'),
+            default='/etc/mirth_nagios/mirth_exclusions.json',
             help=('Specify the location of the exclusions file to use. (Default: '
                 '%(default)s)'))
     parser.add_argument('-A', dest='authPassword',

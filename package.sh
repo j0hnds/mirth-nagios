@@ -11,6 +11,7 @@ DSTRUCT=/tmp/$FNAME
 
 mkdir -p $DSTRUCT
 cp -r bin $DSTRUCT
+cp -r config $DSTRUCT
 
 tar jcf $FNAME.tar.bz2 --directory /tmp $FNAME
 
